@@ -1,0 +1,8 @@
+await myContract.updateMessage('gay');
+await myContract.message();
+myContract.message();
+await myContract.message();
+await myContract.updateMessage("New message");
+await myContract.message();
+const myContract = await MyContract.attach("0x5FbDB2315678afecb367f032d93F642f64180aa3");
+const MyContract = await ethers.getContractFactory("MyContract");
