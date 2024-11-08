@@ -22,6 +22,8 @@ function decryptFile(encryptedFile, password) {
     }
 }
 
+module.exports = { decryptFile };
+
 async function downloadFromIPFS(ipfsHash) {
     try {
         const url = `https://ipfs.io/ipfs/${ipfsHash}`;
@@ -52,9 +54,8 @@ async function main() {
         rl.question('Enter the password to decrypt the file: ', async (password) => {
             try {
                 const encryptedFile = await downloadFromIPFS(ipfsHash);
-                const originalFileName = encryptedFile.originalFileName || 'decrypted_file.txt';
+                const originalFileName = encryptedFile.originalFileName || 'decrypted_file';
                 const decryptedFile = decryptFile(encryptedFile, password);
-                
                 fs.writeFileSync(`./${originalFileName}`, decryptedFile);
                 console.log(`Decrypted file saved as ${originalFileName}`);
             } catch (error) {
@@ -66,4 +67,4 @@ async function main() {
     });
 }
 
-main();
+//main();
