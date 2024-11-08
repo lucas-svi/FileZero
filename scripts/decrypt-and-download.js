@@ -10,18 +10,32 @@ function decryptFile(encryptedFile, password) {
         key,
         Buffer.from(encryptedFile.iv, 'hex')
     );
-    const decrypted = Buffer.concat([
-        decipher.update(Buffer.from(encryptedFile.content, 'hex')),
-        decipher.final()
-    ]);
-    return decrypted;
+
+    try {
+        const decrypted = Buffer.concat([
+            decipher.update(Buffer.from(encryptedFile.content, 'hex')),
+            decipher.final()
+        ]);
+        return decrypted;
+    } catch (error) {
+        throw new Error("Decryption failed. Possible incorrect password or corrupted file.");
+    }
 }
 
 async function downloadFromIPFS(ipfsHash) {
     try {
         const url = `https://ipfs.io/ipfs/${ipfsHash}`;
         const response = await axios.get(url, { responseType: 'arraybuffer' });
-        return JSON.parse(Buffer.from(response.data).toString());
+        const fileData = Buffer.from(response.data).toString();
+
+        let encryptedFile;
+        try {
+            encryptedFile = JSON.parse(fileData);
+        } catch (error) {
+            throw new Error("Downloaded data is not in the expected format. Decryption failed.");
+        }
+
+        return encryptedFile;
     } catch (error) {
         console.error('Error downloading file from IPFS:', error);
         throw error;
@@ -38,12 +52,13 @@ async function main() {
         rl.question('Enter the password to decrypt the file: ', async (password) => {
             try {
                 const encryptedFile = await downloadFromIPFS(ipfsHash);
-                const originalFileName = encryptedFile.originalFileName || 'decrypted_file';
+                const originalFileName = encryptedFile.originalFileName || 'decrypted_file.txt';
                 const decryptedFile = decryptFile(encryptedFile, password);
+                
                 fs.writeFileSync(`./${originalFileName}`, decryptedFile);
                 console.log(`Decrypted file saved as ${originalFileName}`);
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error:', error.message);
             } finally {
                 rl.close();
             }

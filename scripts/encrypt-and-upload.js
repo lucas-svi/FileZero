@@ -1,13 +1,21 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const pinataSDK = require('@pinata/sdk');
+const { ethers } = require('ethers');
 const readline = require('readline');
-const path = require('path')
+const path = require('path');
 require('dotenv').config();
 
 const pinataApiKey = process.env.PINATA_API_KEY;
 const pinataSecretApiKey = process.env.PINATA_SECRET_API_KEY;
 const pinata = new pinataSDK(pinataApiKey, pinataSecretApiKey);
+
+const provider = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545');
+const privateKey = process.env.PRIVATE_KEY;
+const wallet = new ethers.Wallet(privateKey, provider);
+const contractAddress = process.env.CONTRACT_ADDRESS;
+const contractABI = require('../artifacts/contracts/FileShare.sol/FileShare.json').abi;
+const contract = new ethers.Contract(contractAddress, contractABI, wallet);
 
 function encryptFile(fileBuffer, password, originalFileName) {
     const iv = crypto.randomBytes(16);
@@ -33,18 +41,27 @@ async function uploadToPinata(encryptedFile) {
             cidVersion: 1
         }
     };
-
     try {
         const tempFilePath = './encrypted_file.json';
         fs.writeFileSync(tempFilePath, JSON.stringify(encryptedFile));
         const readableStreamForFile = fs.createReadStream(tempFilePath);
         const result = await pinata.pinFileToIPFS(readableStreamForFile, options);
-        console.log('File uploaded to IPFS via Pinata. IPFS Hash:', result.IpfsHash);
+        console.log('File uploaded to IPFS. IPFS Hash:', result.IpfsHash);
         fs.unlinkSync(tempFilePath);
         return result.IpfsHash;
     } catch (error) {
-        console.error('Error uploading file to Pinata:', error);
+        console.error('Error uploading file to IPFS:', error);
         throw error;
+    }
+}
+
+async function storeHashOnBlockchain(ipfsHash) {
+    try {
+        const tx = await contract.uploadFile(ipfsHash);
+        await tx.wait();
+        console.log(`IPFS hash stored on blockchain. Transaction hash: ${tx.hash}`);
+    } catch (error) {
+        console.error('Error storing hash on blockchain:', error);
     }
 }
 
@@ -61,7 +78,8 @@ async function main() {
                 const originalFileName = path.basename(filePath);
                 const encryptedFile = encryptFile(fileBuffer, password, originalFileName);
                 const ipfsHash = await uploadToPinata(encryptedFile);
-                console.log('Successfully uploaded encrypted file to IPFS via Pinata. Hash:', ipfsHash);
+                await storeHashOnBlockchain(ipfsHash);
+                console.log('File successfully uploaded to IPFS and IPFS hash stored on blockchain.');
             } catch (error) {
                 console.error('Error:', error);
             } finally {

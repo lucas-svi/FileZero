@@ -1,3 +1,6 @@
+console.log(fileData);
+const fileData = await contract.files(1);
+const contract = await ethers.getContractAt("FileShare", "0x5fbdb2315678afecb367f032d93f642f64180aa3");
 a = await ethers.provider.getTransactionReceipt('0x5aa88e1b17450524b0d03ac56150a1628015d74e69f2079a1d9b53815a5aa3b9');
 const a = await ethers.provider.getTransactionReceipt('0x5aa88e1b17450524b0d03ac56150a1628015d74e69f2079a1d9b53815a5aa3b9');
 const a = await ethers.provider.getTransactionRecept('0x5aa88e1b17450524b0d03ac56150a1628015d74e69f2079a1d9b53815a5aa3b9');
