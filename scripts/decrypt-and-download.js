@@ -5,8 +5,15 @@ const readline = require('readline');
 
 function decryptFile(encryptedFile, password) {
     const key = crypto.createHash('sha256').update(String(password)).digest('base64').substr(0, 32);
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(encryptedFile.iv, 'hex'));
-    const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
+    const decipher = crypto.createDecipheriv(
+        'aes-256-cbc',
+        key,
+        Buffer.from(encryptedFile.iv, 'hex')
+    );
+    const decrypted = Buffer.concat([
+        decipher.update(Buffer.from(encryptedFile.content, 'hex')),
+        decipher.final()
+    ]);
     return decrypted;
 }
 
@@ -27,17 +34,21 @@ async function main() {
         output: process.stdout
     });
 
-    rl.question('Enter the IPFS hash: ', async (ipfsHash) => {
+    rl.question('Enter the IPFS hash: ', (ipfsHash) => {
         rl.question('Enter the password to decrypt the file: ', async (password) => {
             try {
                 const encryptedFile = await downloadFromIPFS(ipfsHash);
+                const originalFileName = encryptedFile.originalFileName || 'decrypted_file';
                 const decryptedFile = decryptFile(encryptedFile, password);
-                fs.writeFileSync('./decrypted_file.txt', decryptedFile);
-                console.log('Decrypted file saved as decrypted_file.txt');
+                fs.writeFileSync(`./${originalFileName}`, decryptedFile);
+                console.log(`Decrypted file saved as ${originalFileName}`);
             } catch (error) {
                 console.error('Error:', error);
+            } finally {
+                rl.close();
             }
         });
     });
 }
+
 main();

@@ -2,18 +2,23 @@ const fs = require('fs');
 const crypto = require('crypto');
 const pinataSDK = require('@pinata/sdk');
 const readline = require('readline');
+const path = require('path')
 require('dotenv').config();
 
 const pinataApiKey = process.env.PINATA_API_KEY;
 const pinataSecretApiKey = process.env.PINATA_SECRET_API_KEY;
 const pinata = new pinataSDK(pinataApiKey, pinataSecretApiKey);
 
-function encryptFile(fileBuffer, password) {
+function encryptFile(fileBuffer, password, originalFileName) {
     const iv = crypto.randomBytes(16);
     const key = crypto.createHash('sha256').update(String(password)).digest('base64').substr(0, 32);
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
     let encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
-    return { iv: iv.toString('hex'), content: encrypted.toString('hex') };
+    return {
+        iv: iv.toString('hex'),
+        content: encrypted.toString('hex'),
+        originalFileName: originalFileName
+    };
 }
 
 async function uploadToPinata(encryptedFile) {
@@ -49,11 +54,12 @@ async function main() {
         output: process.stdout
     });
 
-    rl.question('Enter the file path (e.g., ./test.txt): ', async (filePath) => {
+    rl.question('Enter the file path (e.g., ./test.txt): ', (filePath) => {
         rl.question('Enter a password to encrypt the file: ', async (password) => {
             try {
                 const fileBuffer = fs.readFileSync(filePath);
-                const encryptedFile = encryptFile(fileBuffer, password);
+                const originalFileName = path.basename(filePath);
+                const encryptedFile = encryptFile(fileBuffer, password, originalFileName);
                 const ipfsHash = await uploadToPinata(encryptedFile);
                 console.log('Successfully uploaded encrypted file to IPFS via Pinata. Hash:', ipfsHash);
             } catch (error) {
