@@ -1,8 +1,10 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const pinataSDK = require('@pinata/sdk');
-
-const pinata = new pinataSDK('27da191fcf548524c42e', '9ebc471b5e1fb98d8d849741304e82064551a7232d7e78d88991d94242655714');
+require('dotenv').config();
+const pinataApiKey = process.env.PINATA_API_KEY;
+const pinataSecretApiKey = process.env.PINATA_SECRET_API_KEY; 
+const pinata = new pinataSDK(pinataApiKey, pinataSecretApiKey);
 
 function encryptFile(fileBuffer, password) {
     const iv = crypto.randomBytes(16);

@@ -21,7 +21,7 @@ async function downloadFromIPFS(ipfsHash) {
 }
 
 async function main() {
-    const ipfsHash = 'bafkreihyhcxa7pkygs3tpe3c7ptcorji2ppqhwd7d4uwjhapum7lkq3wmq';
+    const ipfsHash = 'bafkreigyymyu5chgbj3tku4rpc6xyyuewjdpztnnftj7ygqrzj7336du5u';
     const password = 'your-encryption-password';
 
     try {
