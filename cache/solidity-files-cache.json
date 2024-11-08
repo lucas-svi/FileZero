@@ -6,9 +6,8 @@
       "contentHash": "b5e27931fa6af4d22e150292c4f6b107",
       "sourceName": "contracts/MyContract.sol",
       "solcConfig": {
-        "version": "0.8.27",
+        "version": "0.8.0",
         "settings": {
-          "evmVersion": "paris",
           "optimizer": {
             "enabled": false,
             "runs": 200
@@ -35,6 +34,41 @@
       ],
       "artifacts": [
         "MyContract"
+      ]
+    },
+    "/Users/lucas/Desktop/cs/comp334/FileZero/contracts/FileShare.sol": {
+      "lastModificationDate": 1730231496398,
+      "contentHash": "e43223d170484bd7cdc0fd06981150c0",
+      "sourceName": "contracts/FileShare.sol",
+      "solcConfig": {
+        "version": "0.8.0",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "FileShare"
       ]
     }
   }
