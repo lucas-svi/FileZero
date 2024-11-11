@@ -1,26 +1,26 @@
-// SPDX-License-Identifier: MIT 
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 contract FileShare {
-    struct File {
-        string ipfsHash;
-        address owner;
-    }
+    mapping(bytes32 => bool) public fileOwnershipProofs;
 
-    mapping(uint256 => File) public files;
-    uint256 public fileCount;
-
-    event FileUploaded(uint256 fileId, string ipfsHash, address owner);
+    event FileUploaded(bytes32 indexed proof, string ipfsHash, address indexed owner);
+    event FileAccessed(bytes32 indexed proof, address accessedBy, uint256 timestamp);
 
     function uploadFile(string memory _ipfsHash) public {
-        fileCount++;
-        files[fileCount] = File(_ipfsHash, msg.sender);
-
-        emit FileUploaded(fileCount, _ipfsHash, msg.sender);
+        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash, msg.sender));
+        fileOwnershipProofs[proof] = true;
+        emit FileUploaded(proof, _ipfsHash, msg.sender);
     }
 
-    function getFile(uint256 _fileId) public view returns (string memory) {
-        require(files[_fileId].owner == msg.sender, "You are not the owner of this file.");
-        return files[_fileId].ipfsHash;
+    function verifyOwnership(string memory _ipfsHash) public view returns (bool) {
+        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash, msg.sender));
+        return fileOwnershipProofs[proof];
+    }
+
+    function logAccess(string memory _ipfsHash) public {
+        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash, msg.sender));
+        require(fileOwnershipProofs[proof], "You are not the owner of this file.");
+        emit FileAccessed(proof, msg.sender, block.timestamp);
     }
 }

@@ -1,3 +1,30 @@
+clear
+await trans.wait();
+const trans = await fileShareContract.logAccess(1);
+await tx.wait();
+const tx = await fileShareContract.logAccess(1);
+const fileShareContract = new ethers.Contract(contractAddress, contractABI, owner);
+const tx = await fileShareContract.logAccess(1);
+const [owner] = await ethers.getSigners();
+const contractABI = require("./artifacts/contracts/FileShare.sol/FileShare.json").abi;
+const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+cls
+const tx = await fileShareContract.logAccess(1);
+// Manually log access for file ID 1
+const fileShareCont
+const [owner] = await ethers.getSigners();
+const contractABI = require("./artifacts/contracts/FileShare.sol/FileShare.json").abi;
+const contractAddress = "<your_contract_address>";
+.exit
+clear
+await tx.wait();
+const tx = await fileShareContract.logAccess(1);
+const fileShareContract = new ethers.Contract(contractAddress, contract, owner);
+const [owner] = await ethers.getSigners();
+const contract = require('./artifacts/contracts/FileShare.sol/FileShare.json').abi;
+const contractABI = require('./artifacts/contracts/FileShare.sol/FileShare.json').abi;
+const contractABI = require("./artifacts/contracts/FileShare.sol/FireShare.json").abi;
+const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 console.log(fileData);
 const fileData = await contract.files(1);
 const contract = await ethers.getContractAt("FileShare", "0x5fbdb2315678afecb367f032d93f642f64180aa3");
