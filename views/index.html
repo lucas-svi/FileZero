@@ -151,6 +151,8 @@
             const response = await fetch('/logs');
             const result = await response.json();
             const logsContainer = document.getElementById('accessLogs');
+            logsContainer.innerHTML = '';
+
             if (result.success) {
                 const logs = [
                     ...(result.accessLogs || []).map(log => ({ ...log, isUnauthorized: false })),

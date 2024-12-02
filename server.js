@@ -128,28 +128,34 @@ app.get('/logs', async (req, res) => {
         const unauthorizedFilter = fileShareContract.filters.UnauthorizedAccess();
         const unauthorizedEvents = await fileShareContract.queryFilter(unauthorizedFilter);
 
+
+        
         const unauthorizedLogs = unauthorizedEvents.map(event => ({
             proof: event.args.proof,
             attemptedBy: event.args.attemptedBy,
             ipAddress: event.args.ipAddress,
-            timestamp: new Date(Number(event.args.timestamp)).toLocaleString()
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
         }));
-
         const accessFilter = fileShareContract.filters.FileAccessed();
         const accessEvents = await fileShareContract.queryFilter(accessFilter);
-
         const accessLogs = accessEvents.map(event => ({
             proof: event.args.proof,
             accessedBy: event.args.accessedBy,
-            timestamp: new Date(Number(event.args.timestamp)).toLocaleString()
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
         }));
+
+        
+
+        console.log(accessLogs)
+        console.log(unauthorizedLogs)
+
 
         res.json({
             success: true,
             unauthorizedLogs,
             accessLogs
         });
-        
+
     } catch (error) {
         console.error('Error retrieving access logs:', error);
         res.json({ success: false, error: 'Error retrieving access logs.' });
