@@ -9,7 +9,6 @@
 <body>
     <h1>File Encryption and Storage</h1>
 
-    <!-- Upload Form -->
     <form id="uploadForm">
         <h2>Upload and Encrypt a File</h2>
         <label for="fileInput">Select file:</label>
@@ -19,7 +18,8 @@
         <button type="button" onclick="uploadFile()">Upload and Encrypt</button>
     </form>
 
-    <!-- Download Form -->
+    <hr>
+
     <form id="downloadForm">
         <h2>Decrypt a File</h2>
         <label for="hashInput">Enter IPFS hash:</label>
@@ -29,85 +29,155 @@
         <button type="button" onclick="downloadFile()">Decrypt</button>
     </form>
 
-    <!-- Access Logs Section -->
-    <div class="access-logs">
+    <hr>
+
+    <div id="accessLogsSection">
         <h2>Access Logs</h2>
         <button type="button" onclick="fetchAccessLogs()">View Access Logs</button>
         <div id="accessLogs"></div>
     </div>
 
     <script>
+        async function getConnectedWallet() {
+            if (window.ethereum) {
+                try {
+                    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                    return accounts[0];
+                } catch (error) {
+                    console.error('User denied wallet access:', error);
+                    alert('Please allow access to your wallet to proceed.');
+                    return null;
+                }
+            } else {
+                alert('MetaMask is not installed. Please install it to use this feature.');
+                return null;
+            }
+        }
+
         async function uploadFile() {
+            const walletAddress = await getConnectedWallet();
+            if (!walletAddress) return;
+
             const fileInput = document.getElementById('fileInput').files[0];
             const password = document.getElementById('passwordInput').value;
+
             if (!fileInput || !password) {
                 alert("Please select a file and enter a password.");
                 return;
             }
+
             const formData = new FormData();
             formData.append('file', fileInput);
-            formData.append('password', password);
-            formData.append('originalFileName', fileInput.name);
-            const response = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            if (response.ok) {
-                alert(`File uploaded successfully! IPFS hash: ${result.ipfsHash}`);
-            } else {
-                alert(`Upload failed: ${result.error}`);
+            formData.append('password', password); 
+            formData.append('originalFileName', fileInput.name); 
+            formData.append('walletAddress', walletAddress);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert(`File uploaded successfully! IPFS hash: ${result.ipfsHash}`);
+                } else {
+                    alert(`Upload failed: ${result.error}`);
+                }
+
+                // Reset form fields
+                document.getElementById('fileInput').value = '';
+                document.getElementById('passwordInput').value = '';
+            } catch (error) {
+                alert('An error occurred while uploading the file.');
+                console.error('Upload Error:', error);
             }
-            document.getElementById('fileInput').value = '';
-            document.getElementById('passwordInput').value = '';
         }
 
         async function downloadFile() {
-            const ipfsHash = document.getElementById('hashInput').value;
-            const password = document.getElementById('decryptPasswordInput').value;
-            const response = await fetch('/download', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ ipfsHash, password })
-            });
-            const result = await response.json();
-            if (result.success) {
-                const blob = new Blob([new Uint8Array(result.fileContent.data)], { type: 'application/octet-stream' });
-                const fileName = result.originalFileName || 'decrypted_file';
+            const ipfsHash = document.getElementById('hashInput').value.trim();
+            const password = document.getElementById('decryptPasswordInput').value.trim();
+            const walletAddress = await getConnectedWallet();
+            if (!walletAddress) return;
+
+            if (!ipfsHash || !password) {
+                alert("Please enter both IPFS hash and password.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ipfsHash, password, walletAddress })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to download file.');
+                }
+
+                // Extract filename from Content-Disposition header
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let fileName = 'decrypted_file';
+                if (contentDisposition && contentDisposition.includes('filename=')) {
+                    const match = contentDisposition.match(/filename="(.+)"/);
+                    if (match && match[1]) {
+                        fileName = match[1];
+                    }
+                }
+
+                // Read the response as a Blob
+                const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
+
+                // Create a temporary anchor element to trigger the download
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = fileName;
+                document.body.appendChild(a);
                 a.click();
+
+                // Clean up
+                a.remove();
                 URL.revokeObjectURL(url);
-            } else {
-                alert(result.error);
+
+                // Reset form fields
+                document.getElementById('hashInput').value = '';
+                document.getElementById('decryptPasswordInput').value = '';
+            } catch (error) {
+                alert(`Download failed: ${error.message}`);
+                console.error('Download Error:', error);
             }
-            document.getElementById('hashInput').value = '';
-            document.getElementById('decryptPasswordInput').value = '';
         }
 
         async function fetchAccessLogs() {
-            const response = await fetch('/logs');
-            const data = await response.json();
+            try {
+                const response = await fetch('/logs');
+                const result = await response.json();
 
-            let logsHtml = '<h3>Access Logs:</h3>';
-            if (data.success && data.logs.length > 0) {
-                data.logs.forEach(log => {
-                    logsHtml += `
-                        <p>
-                            <strong>Proof:</strong> ${log.proof}<br>
-                            <strong>Accessed By:</strong> ${log.accessedBy}<br>
-                            <strong>Timestamp:</strong> ${log.timestamp}
-                        </p>
-                        <hr>`;
-                });
-            } else {
-                logsHtml += '<p>No access logs found.</p>';
+                let logsHtml = '<h3>Access Logs:</h3>';
+                if (result.success && result.logs.length > 0) {
+                    result.logs.forEach(log => {
+                        logsHtml += `
+                            <p>
+                                <strong>Proof:</strong> ${log.proof}<br>
+                                <strong>Accessed By:</strong> ${log.accessedBy}<br>
+                                <strong>Timestamp:</strong> ${new Date(log.timestamp).toLocaleString()}
+                            </p>
+                            <hr>`;
+                    });
+                } else {
+                    logsHtml += '<p>No access logs found.</p>';
+                }
+
+                document.getElementById('accessLogs').innerHTML = logsHtml;
+            } catch (error) {
+                alert('Failed to fetch access logs.');
+                console.error('Access Logs Error:', error);
             }
-            document.getElementById('accessLogs').innerHTML = logsHtml;
         }
     </script>
 </body>

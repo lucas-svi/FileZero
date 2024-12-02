@@ -1,9 +1,9 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "C:\\Users\\Dismissive\\FileZero\\contracts\\FileShare.sol": {
-      "lastModificationDate": 1731361242517,
-      "contentHash": "71d790a1bdb31d26247438bfd1a1db45",
+    "/Users/lucas/Desktop/cs/comp334/FileZero/contracts/FileShare.sol": {
+      "lastModificationDate": 1732942864068,
+      "contentHash": "ce69e6ef80f8c230d87b0f4581b39860",
       "sourceName": "contracts/FileShare.sol",
       "solcConfig": {
         "version": "0.8.0",
@@ -36,9 +36,9 @@
         "FileShare"
       ]
     },
-    "C:\\Users\\Dismissive\\FileZero\\contracts\\MyContract.sol": {
-      "lastModificationDate": 1731096596189,
-      "contentHash": "159fc8a9611554917bbbc8148e68e5ab",
+    "/Users/lucas/Desktop/cs/comp334/FileZero/contracts/MyContract.sol": {
+      "lastModificationDate": 1730144883369,
+      "contentHash": "b5e27931fa6af4d22e150292c4f6b107",
       "sourceName": "contracts/MyContract.sol",
       "solcConfig": {
         "version": "0.8.0",

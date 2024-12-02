@@ -5,7 +5,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const pinataSDK = require('@pinata/sdk');
 const { ethers } = require('ethers');
-const { decryptFile } = require('./scripts/decrypt-and-download');
+const { downloadFromIPFS } = require('./scripts/decrypt-and-download');
+const salt = process.env.SALT || 'secure-salt';
 
 require('dotenv').config();
 
@@ -17,7 +18,7 @@ app.use(express.static('views'));
 
 const upload = multer({ dest: 'uploads/' });
 
-const provider = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545');
+const provider = new ethers.JsonRpcProvider(`https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`);
 const privateKey = process.env.PRIVATE_KEY;
 const wallet = new ethers.Wallet(privateKey, provider);
 const contractABI = require('./artifacts/contracts/FileShare.sol/FileShare.json').abi;
@@ -25,68 +26,66 @@ const contractAddress = process.env.CONTRACT_ADDRESS;
 const fileShareContract = new ethers.Contract(contractAddress, contractABI, wallet);
 
 app.post('/upload', upload.single('file'), async (req, res) => {
-    const password = req.body.password;
-    const filePath = req.file.path;
-    const fileBuffer = fs.readFileSync(filePath);
-    const iv = crypto.randomBytes(16);
-    const key = crypto.createHash('sha256').update(password).digest('base64').substr(0, 32);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
-    const encryptedFile = {
-        iv: iv.toString('hex'),
-        content: encrypted.toString('hex'),
-        originalFileName: req.file.originalname,
-    };
+    const { file, password, originalFileName, walletAddress} = req.body;
+    try {
+        const filePath = req.file.path;
+        const fileBuffer = fs.readFileSync(filePath);
 
-    const tempFilePath = 'encrypted_file.json';
-    fs.writeFileSync(tempFilePath, JSON.stringify(encryptedFile));
+        const iv = crypto.randomBytes(16);
+        const key = crypto.createHash('sha256').update(password + walletAddress + salt).digest();
+        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+        const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
 
-    const stream = fs.createReadStream(tempFilePath);
-    const options = { pinataMetadata: { name: req.file.originalname }, pinataOptions: { cidVersion: 1 } };
-    const result = await pinata.pinFileToIPFS(stream, options);
-    const ipfsHash = result.IpfsHash;
+        const encryptedFile = {
+            iv: iv.toString('hex'),
+            content: encrypted.toString('hex'),
+            originalFileName: originalFileName
+        };
 
-    fs.unlinkSync(filePath);
-    fs.unlinkSync(tempFilePath);
+        const tempFilePath = 'encrypted_file.json';
+        fs.writeFileSync(tempFilePath, JSON.stringify(encryptedFile));
 
-    const tx = await fileShareContract.uploadFile(ipfsHash);
-    await tx.wait();
-
-    res.json({ ipfsHash });
+        const stream = fs.createReadStream(tempFilePath);
+        const options = {
+            pinataMetadata: {
+                name: originalFileName,
+            },
+            pinataOptions: {
+                cidVersion: 1
+            }
+        };        
+        const result = await pinata.pinFileToIPFS(stream, options);
+        fs.unlinkSync(filePath);
+        fs.unlinkSync(tempFilePath);
+        
+        const tx = await fileShareContract.uploadFile(result.IpfsHash, walletAddress);
+        await tx.wait();
+        res.json({ ipfsHash: result.IpfsHash });
+    } catch (error) {
+        console.error('Upload Error:', error);
+        res.status(500).json({ error: 'Failed to upload file.' });
+    }
 });
 
+
+
 app.post('/download', async (req, res) => {
-    const { ipfsHash, password } = req.body;
-
-    try {
-        const isOwner = await fileShareContract.verifyOwnership(ipfsHash);
-
-        if (!isOwner) {
-            throw new Error('Access denied: You do not own this file.');
-        }
-
-        const url = `https://ipfs.io/ipfs/${ipfsHash}`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            throw new Error('Failed to retrieve file from IPFS');
-        }
-
-        const encryptedFile = await response.json();
-        const originalFileName = encryptedFile.originalFileName || 'decrypted_file';
-
-        const iv = Buffer.from(encryptedFile.iv, 'hex');
-        const key = crypto.createHash('sha256').update(password).digest('base64').substr(0, 32);
-        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-        const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
-
-        const logTx = await fileShareContract.logAccess(ipfsHash);
-        await logTx.wait();
-
-        res.json({ success: true, fileContent: decrypted, originalFileName });
-    } catch (error) {
-        res.json({ success: false, error: error.message });
+    const { ipfsHash, password, walletAddress: userAddress } = req.body;
+    
+    const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
+    if (!isOwner) {
+        return res.status(403).json({ success: false, error: 'Access denied. You do not own this file.' });
     }
+    const encryptedFile = await downloadFromIPFS(ipfsHash);
+    const derivedKey = crypto.createHash('sha256')
+        .update(password + userAddress + salt)
+        .digest();
+    //implement try catch to stop server from crashing!!!
+    const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, Buffer.from(encryptedFile.iv, 'hex'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encryptedFile.originalFileName}"`);
+    res.send(decrypted);
 });
 
 app.get('/logs', async (req, res) => {

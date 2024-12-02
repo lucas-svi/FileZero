@@ -22,14 +22,13 @@ function decryptFile(encryptedFile, password) {
     }
 }
 
-module.exports = { decryptFile };
+module.exports = { downloadFromIPFS };
 
 async function downloadFromIPFS(ipfsHash) {
     try {
-        const url = `https://ipfs.io/ipfs/${ipfsHash}`;
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        const url = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+        const response = await axios.get(url, { responseType: 'text' });
         const fileData = Buffer.from(response.data).toString();
-
         let encryptedFile;
         try {
             encryptedFile = JSON.parse(fileData);

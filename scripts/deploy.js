@@ -3,10 +3,7 @@ const hre = require("hardhat");
 async function main() {
     const FileShare = await hre.ethers.getContractFactory("FileShare");
     const fileShare = await FileShare.deploy();
-
-    await fileShare.deployed();
-
-    console.log("FileShare deployed to:", fileShare.address);
+    console.log("FileShare deployed to:", fileShare.target);
 }
 
 main()
