@@ -4,6 +4,8 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const pinataSDK = require('@pinata/sdk');
+const requestIp = require('request-ip');
+const iplocation = require('iplocation');
 const { ethers } = require('ethers');
 const { downloadFromIPFS } = require('./scripts/decrypt-and-download');
 const salt = process.env.SALT || 'secure-salt';
@@ -57,7 +59,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const result = await pinata.pinFileToIPFS(stream, options);
         fs.unlinkSync(filePath);
         fs.unlinkSync(tempFilePath);
-        
+
         const tx = await fileShareContract.uploadFile(result.IpfsHash, walletAddress);
         await tx.wait();
         res.json({ ipfsHash: result.IpfsHash });
@@ -67,38 +69,75 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
-
+const sanitizeFilename = (filename) => {
+    return filename.replace(/[^a-zA-Z0-9-_\.]/g, '_').replace(/"/g, '');
+};
 
 app.post('/download', async (req, res) => {
-    const { ipfsHash, password, walletAddress: userAddress } = req.body;
-    
-    const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
-    if (!isOwner) {
-        return res.status(403).json({ success: false, error: 'Access denied. You do not own this file.' });
-    }
-    const encryptedFile = await downloadFromIPFS(ipfsHash);
-    const derivedKey = crypto.createHash('sha256')
-        .update(password + userAddress + salt)
-        .digest();
-    //implement try catch to stop server from crashing!!!
-    const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, Buffer.from(encryptedFile.iv, 'hex'));
-    const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
+    try {
+        const { ipfsHash, password, walletAddress: userAddress } = req.body;
+        const clientIp = requestIp.getClientIp(req)
+        const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
+        if (isOwner) {
+            const tx = await fileShareContract.logAccess(ipfsHash, userAddress);
+            await tx.wait();
+            const encryptedFile = await downloadFromIPFS(ipfsHash);
+            const derivedKey = crypto.createHash('sha256')
+                .update(password + userAddress + salt)
+                .digest();
+            const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, Buffer.from(encryptedFile.iv, 'hex'));
+            const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
+            const filename = encryptedFile.originalFileName
+            ? sanitizeFilename(encryptedFile.originalFileName)
+            : 'default_filename.txt';
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(decrypted);
+        } else {
+            const tx = await fileShareContract.logUnauthorizedAccess(ipfsHash, clientIp);
+            await tx.wait();
+            notifyOwner(userAddress, `Unauthorized access attempt from ${clientIp} (${city}, ${country})`);
+            return res.status(403).json({ success: false, error: 'Unauthorized access attempt logged.' });
+        }
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encryptedFile.originalFileName}"`);
-    res.send(decrypted);
+        
+    } catch (error) {
+        console.log('Error Code:', error.code); 
+        if (error.reason) {
+            console.log('Error Reason:', error.reason); 
+        } else {
+            console.log('Unknown Error:', error); 
+        }
+        res.status(500).json({ error: `${error.reason ? error.reason : "Error"}` });
+    }
+    
 });
 
 app.get('/logs', async (req, res) => {
     try {
-        const filter = fileShareContract.filters.FileAccessed();
-        const events = await fileShareContract.queryFilter(filter);
-        const logs = events.map(event => ({
-            proof: event.args.proof,
-            accessedBy: event.args.accessedBy,
-            timestamp: new Date(event.args.timestamp.toNumber() * 1000).toLocaleString()
+        const unauthorizedFilter = fileShareContract.filters.UnauthorizedAccess();
+        const unauthorizedEvents = await fileShareContract.queryFilter(unauthorizedFilter);
+
+        const unauthorizedLogs = unauthorizedEvents.map(event => ({
+            proof: event.args[0],
+            attemptedBy: event.args[1],
+            timestamp: new Date(event.args[2].toNumber() * 1000).toLocaleString()
         }));
 
-        res.json({ success: true, logs });
+        const accessFilter = fileShareContract.filters.FileAccessed();
+        const accessEvents = await fileShareContract.queryFilter(accessFilter);
+
+        const accessLogs = accessEvents.map(event => ({
+            proof: event.args[0],
+            timestamp: new Date(Number(event.args[1]) * 1000).toLocaleString()
+        }));
+
+        console.log("hello")
+        console.log(accessLogs)
+        res.json({
+            success: true,
+            unauthorizedLogs,
+            accessLogs
+        });
     } catch (error) {
         console.error('Error retrieving access logs:', error);
         res.json({ success: false, error: 'Error retrieving access logs.' });

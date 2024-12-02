@@ -85,7 +85,6 @@
                     alert(`Upload failed: ${result.error}`);
                 }
 
-                // Reset form fields
                 document.getElementById('fileInput').value = '';
                 document.getElementById('passwordInput').value = '';
             } catch (error) {
@@ -119,7 +118,6 @@
                     throw new Error(errorData.error || 'Failed to download file.');
                 }
 
-                // Extract filename from Content-Disposition header
                 const contentDisposition = response.headers.get('Content-Disposition');
                 let fileName = 'decrypted_file';
                 if (contentDisposition && contentDisposition.includes('filename=')) {
@@ -129,54 +127,41 @@
                     }
                 }
 
-                // Read the response as a Blob
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
 
-                // Create a temporary anchor element to trigger the download
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = fileName;
                 document.body.appendChild(a);
                 a.click();
 
-                // Clean up
                 a.remove();
                 URL.revokeObjectURL(url);
 
-                // Reset form fields
                 document.getElementById('hashInput').value = '';
                 document.getElementById('decryptPasswordInput').value = '';
             } catch (error) {
-                alert(`Download failed: ${error.message}`);
+                alert(`${error.message}`);
                 console.error('Download Error:', error);
             }
         }
 
         async function fetchAccessLogs() {
-            try {
-                const response = await fetch('/logs');
-                const result = await response.json();
+            const response = await fetch('/logs');
+            const result = await response.json();
 
-                let logsHtml = '<h3>Access Logs:</h3>';
-                if (result.success && result.logs.length > 0) {
-                    result.logs.forEach(log => {
-                        logsHtml += `
-                            <p>
-                                <strong>Proof:</strong> ${log.proof}<br>
-                                <strong>Accessed By:</strong> ${log.accessedBy}<br>
-                                <strong>Timestamp:</strong> ${new Date(log.timestamp).toLocaleString()}
-                            </p>
-                            <hr>`;
-                    });
-                } else {
-                    logsHtml += '<p>No access logs found.</p>';
-                }
-
-                document.getElementById('accessLogs').innerHTML = logsHtml;
-            } catch (error) {
-                alert('Failed to fetch access logs.');
-                console.error('Access Logs Error:', error);
+            const logsContainer = document.getElementById('accessLogs');
+            if (result.success) {
+                logsContainer.innerHTML = result.logs.map(log => `
+                    <p>
+                        <strong>Access Type:</strong> ${log.isUnauthorized ? 'Unauthorized' : 'Authorized'}<br>
+                        <strong>Timestamp:</strong> ${log.timestamp}<br>
+                        ${log.isUnauthorized ? `<strong>IP Address:</strong> ${log.ipAddress}<br>
+                        <strong>Location:</strong> ${log.location}<br>` : ''}
+                    </p><hr>`).join('');
+            } else {
+                logsContainer.innerHTML = `<p>Error: ${result.error}</p>`;
             }
         }
     </script>

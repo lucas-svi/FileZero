@@ -1,9 +1,9 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/lucas/Desktop/cs/comp334/FileZero/contracts/FileShare.sol": {
-      "lastModificationDate": 1732942864068,
-      "contentHash": "ce69e6ef80f8c230d87b0f4581b39860",
+    "C:\\Users\\Dismissive\\FileZero\\contracts\\FileShare.sol": {
+      "lastModificationDate": 1733178680411,
+      "contentHash": "403220f48e7e22f5f9584522def8d3ce",
       "sourceName": "contracts/FileShare.sol",
       "solcConfig": {
         "version": "0.8.0",
@@ -34,41 +34,6 @@
       ],
       "artifacts": [
         "FileShare"
-      ]
-    },
-    "/Users/lucas/Desktop/cs/comp334/FileZero/contracts/MyContract.sol": {
-      "lastModificationDate": 1730144883369,
-      "contentHash": "b5e27931fa6af4d22e150292c4f6b107",
-      "sourceName": "contracts/MyContract.sol",
-      "solcConfig": {
-        "version": "0.8.0",
-        "settings": {
-          "optimizer": {
-            "enabled": false,
-            "runs": 200
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.0"
-      ],
-      "artifacts": [
-        "MyContract"
       ]
     }
   }
