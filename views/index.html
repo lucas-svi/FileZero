@@ -150,16 +150,29 @@
         async function fetchAccessLogs() {
             const response = await fetch('/logs');
             const result = await response.json();
-
             const logsContainer = document.getElementById('accessLogs');
             if (result.success) {
-                logsContainer.innerHTML = result.logs.map(log => `
-                    <p>
-                        <strong>Access Type:</strong> ${log.isUnauthorized ? 'Unauthorized' : 'Authorized'}<br>
-                        <strong>Timestamp:</strong> ${log.timestamp}<br>
-                        ${log.isUnauthorized ? `<strong>IP Address:</strong> ${log.ipAddress}<br>
-                        <strong>Location:</strong> ${log.location}<br>` : ''}
-                    </p><hr>`).join('');
+                const logs = [
+                    ...(result.accessLogs || []).map(log => ({ ...log, isUnauthorized: false })),
+                    ...(result.unauthorizedLogs || []).map(log => ({ ...log, isUnauthorized: true }))
+                ];
+                if (Array.isArray(logs) && logs.length > 0) {
+                    logsContainer.innerHTML = logs.map(log => `
+                        <p>
+                            <strong>Access Type:</strong> ${log.isUnauthorized ? 'Unauthorized' : 'Authorized'}<br>
+                            <strong>Timestamp:</strong> ${log.timestamp}<br>
+                            <strong>Ethereum Address:</strong> 
+                            <a href="https://etherscan.io/address/${log.isUnauthorized ? log.attemptedBy : log.accessedBy}" 
+                            target="_blank" 
+                            rel="noopener noreferrer">
+                            ${log.isUnauthorized ? log.attemptedBy : log.accessedBy}
+                            </a><br>
+                            ${log.isUnauthorized ? `<strong>IP Address:</strong> ${log.ipAddress}<br>` : ''}
+                        </p><hr>
+                    `).join('');
+                } else {
+                    logsContainer.innerHTML = `<p>No logs available.</p>`;
+                }
             } else {
                 logsContainer.innerHTML = `<p>Error: ${result.error}</p>`;
             }

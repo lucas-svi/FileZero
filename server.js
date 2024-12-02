@@ -5,7 +5,6 @@ const fs = require('fs');
 const crypto = require('crypto');
 const pinataSDK = require('@pinata/sdk');
 const requestIp = require('request-ip');
-const iplocation = require('iplocation');
 const { ethers } = require('ethers');
 const { downloadFromIPFS } = require('./scripts/decrypt-and-download');
 const salt = process.env.SALT || 'secure-salt';
@@ -73,10 +72,23 @@ const sanitizeFilename = (filename) => {
     return filename.replace(/[^a-zA-Z0-9-_\.]/g, '_').replace(/"/g, '');
 };
 
+function normalizeIp(ip) {
+    if (ip === '::1') {
+        return '127.0.0.1';
+    }
+    
+    if (ip.includes('::ffff:')) {
+        return ip.split('::ffff:')[1];
+    }
+
+    return ip;
+}
+
 app.post('/download', async (req, res) => {
     try {
         const { ipfsHash, password, walletAddress: userAddress } = req.body;
-        const clientIp = requestIp.getClientIp(req)
+        let clientIp = requestIp.getClientIp(req);
+        clientIp = normalizeIp(clientIp);
         const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
         if (isOwner) {
             const tx = await fileShareContract.logAccess(ipfsHash, userAddress);
@@ -93,9 +105,8 @@ app.post('/download', async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(decrypted);
         } else {
-            const tx = await fileShareContract.logUnauthorizedAccess(ipfsHash, clientIp);
+            const tx = await fileShareContract.logUnauthorizedAccess(ipfsHash, userAddress, clientIp);
             await tx.wait();
-            notifyOwner(userAddress, `Unauthorized access attempt from ${clientIp} (${city}, ${country})`);
             return res.status(403).json({ success: false, error: 'Unauthorized access attempt logged.' });
         }
 
@@ -118,30 +129,30 @@ app.get('/logs', async (req, res) => {
         const unauthorizedEvents = await fileShareContract.queryFilter(unauthorizedFilter);
 
         const unauthorizedLogs = unauthorizedEvents.map(event => ({
-            proof: event.args[0],
-            attemptedBy: event.args[1],
-            timestamp: new Date(event.args[2].toNumber() * 1000).toLocaleString()
+            proof: event.args.proof,
+            attemptedBy: event.args.attemptedBy,
+            ipAddress: event.args.ipAddress,
+            timestamp: new Date(Number(event.args.timestamp)).toLocaleString()
         }));
 
         const accessFilter = fileShareContract.filters.FileAccessed();
         const accessEvents = await fileShareContract.queryFilter(accessFilter);
 
         const accessLogs = accessEvents.map(event => ({
-            proof: event.args[0],
-            timestamp: new Date(Number(event.args[1]) * 1000).toLocaleString()
+            proof: event.args.proof,
+            accessedBy: event.args.accessedBy,
+            timestamp: new Date(Number(event.args.timestamp)).toLocaleString()
         }));
 
-        console.log("hello")
-        console.log(accessLogs)
         res.json({
             success: true,
             unauthorizedLogs,
             accessLogs
         });
+        
     } catch (error) {
         console.error('Error retrieving access logs:', error);
         res.json({ success: false, error: 'Error retrieving access logs.' });
     }
 });
-
 app.listen(3000, () => console.log('Server started on http://localhost:3000'));
