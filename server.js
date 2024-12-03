@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const multer = require('multer');
@@ -8,23 +9,30 @@ const requestIp = require('request-ip');
 const { ethers } = require('ethers');
 const { downloadFromIPFS } = require('./scripts/decrypt-and-download');
 const salt = process.env.SALT || 'secure-salt';
-
-require('dotenv').config();
-
+const path = require('path');
 const pinata = new pinataSDK(process.env.PINATA_API_KEY, process.env.PINATA_SECRET_API_KEY);
 
 const app = express();
+app.set('trust proxy', true);
 app.use(bodyParser.json());
-app.use(express.static('views'));
+app.use(express.static(path.join(__dirname, 'views')));
 
 const upload = multer({ dest: 'uploads/' });
 
 const provider = new ethers.JsonRpcProvider(`https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`);
 const privateKey = process.env.PRIVATE_KEY;
 const wallet = new ethers.Wallet(privateKey, provider);
+
 const contractABI = require('./artifacts/contracts/FileShare.sol/FileShare.json').abi;
 const contractAddress = process.env.CONTRACT_ADDRESS;
 const fileShareContract = new ethers.Contract(contractAddress, contractABI, wallet);
+
+
+app.get('/my-ip', (req, res) => {
+    const ip = requestIp.getClientIp(req);
+    res.json({ ip });
+});
+
 
 app.post('/upload', upload.single('file'), async (req, res) => {
     const { file, password, originalFileName, walletAddress} = req.body;
@@ -145,7 +153,7 @@ app.get('/logs', async (req, res) => {
         .map(event => ({
             proof: event.args.proof,
             accessedBy: event.args.accessedBy,
-            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString(),
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString("en-US", { timeZone: "America/New_York" }),
             ipfsHash: event.args.ipfsHash,
         }));
 
@@ -155,7 +163,7 @@ app.get('/logs', async (req, res) => {
             proof: event.args.proof,
             attemptedBy: event.args.attemptedBy,
             ipAddress: event.args.ipAddress,
-            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString(),
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString("en-US", { timeZone: "America/New_York" }),
             ipfsHash: event.args.ipfsHash,
         }));
 
