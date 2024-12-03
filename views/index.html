@@ -4,14 +4,14 @@
     <link rel="stylesheet" href="style.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Encryption and Storage</title>
+    <title>FileZero</title>
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
 </head>
 <body>
     <div id="particles-js"></div>
     <div class="content">
-        <h1>File Encryption and Storage</h1>
+        <h1>FileZero</h1>
 
         <form id="uploadForm">
             <h2>Upload and Encrypt a File</h2>
@@ -288,13 +288,15 @@
                             <p>
                                 <strong>Access Type:</strong> ${log.isUnauthorized ? 'Unauthorized' : 'Authorized'}<br>
                                 <strong>Timestamp:</strong> ${log.timestamp}<br>
-                                <strong>Ethereum Address:</strong> 
-                                <a href="https://etherscan.io/address/${log.isUnauthorized ? log.attemptedBy : log.accessedBy}" 
-                                target="_blank" 
-                                rel="noopener noreferrer">
-                                    ${log.isUnauthorized ? log.attemptedBy : log.accessedBy}
-                                </a><br>
-                                ${log.isUnauthorized ? `<strong>IP Address:</strong> ${log.ipAddress}<br>` : ''}
+                                ${log.isUnauthorized ? `
+                                    <strong>Ethereum Address:</strong> 
+                                    <a href="https://etherscan.io/address/${log.attemptedBy}" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer">
+                                        ${log.attemptedBy}
+                                    </a><br>
+                                    <strong>IP Address:</strong> ${log.ipAddress}<br>
+                                ` : ''}
                             </p>
                             <hr>
                         `).join('');
