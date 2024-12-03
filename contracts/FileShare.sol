@@ -4,98 +4,100 @@ pragma solidity ^0.8.0;
 contract FileShare {
     struct File {
         address owner;
-        address[] authorized;
+        address[] authorizedUsers;
         string ipfsHash;
     }
 
     mapping(bytes32 => File) private files;
-    address public serverAddress;
 
-    event FileUploaded(bytes32 indexed proof, string ipfsHash, address indexed owner);
-    event FileAccessed(bytes32 indexed proof, address indexed accessedBy, string ipfsHash, uint256 timestamp);
-    event UnauthorizedAccess(bytes32 indexed proof, address indexed attemptedBy, string ipfsHash, string ipAddress, uint256 timestamp);
-    event AddressAuthorized(bytes32 indexed proof, address indexed authorizedAddress);
-    event AddressRevoked(bytes32 indexed proof, address indexed revokedAddress);
+    event FileUploaded(bytes32 indexed fileId, string ipfsHash, address indexed owner, address[] authorizedUsers);
+    event AccessGranted(bytes32 indexed fileId, address indexed grantedTo);
+    event AccessRevoked(bytes32 indexed fileId, address indexed revokedFrom);
+    event FileAccessed(bytes32 indexed fileId, address indexed accessedBy, uint256 timestamp);
+    event UnauthorizedAccess(bytes32 indexed fileId, address indexed attemptedBy, string ipAddress, uint256 timestamp);
 
-    constructor() {
-        serverAddress = msg.sender; // Server deploys the contract
-    }
-
-    modifier onlyOwnerOrServer(bytes32 proof) {
-        require(files[proof].owner == msg.sender || msg.sender == serverAddress, "Not authorized.");
+    modifier onlyOwner(bytes32 fileId) {
+        require(files[fileId].owner == msg.sender, "Only the file owner can perform this action.");
         _;
     }
 
-    function uploadFile(string memory _ipfsHash, address[] memory initialAuthorized, address owner) public {
-        require(msg.sender == serverAddress, "Only server can call this function.");
-        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash));
-        require(files[proof].owner == address(0), "File already uploaded.");
+    function uploadFile(
+        string memory ipfsHash,
+        address[] memory authorizedUsers,
+        address owner
+    ) public {
+        bytes32 fileId = keccak256(abi.encodePacked(ipfsHash));
+        require(files[fileId].owner == address(0), "File already exists.");
 
-        File storage newFile = files[proof];
-        newFile.owner = owner;
-        newFile.ipfsHash = _ipfsHash;
-
-        for (uint256 i = 0; i < initialAuthorized.length; i++) {
-            address addr = initialAuthorized[i];
-            require(addr != address(0), "Invalid address.");
-            newFile.authorized.push(addr);
-            emit AddressAuthorized(proof, addr);
+        if (owner == address(0) && authorizedUsers.length > 0) {
+            owner = authorizedUsers[0];
         }
 
-        emit FileUploaded(proof, _ipfsHash, owner);
+        files[fileId] = File({
+            owner: owner,
+            authorizedUsers: authorizedUsers,
+            ipfsHash: ipfsHash
+        });
+
+        emit FileUploaded(fileId, ipfsHash, owner, authorizedUsers);
     }
 
-    function isAuthorized(string memory _ipfsHash, address user) public view returns (bool) {
-        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash));
-        if (files[proof].owner == user) {
+    function grantAccess(bytes32 fileId, address user) public onlyOwner(fileId) {
+        require(user != address(0), "Invalid address.");
+        File storage file = files[fileId];
+
+        for (uint256 i = 0; i < file.authorizedUsers.length; i++) {
+            require(file.authorizedUsers[i] != user, "User already authorized.");
+        }
+
+        file.authorizedUsers.push(user);
+        emit AccessGranted(fileId, user);
+    }
+
+    function revokeAccess(bytes32 fileId, address user) public onlyOwner(fileId) {
+        File storage file = files[fileId];
+        bool found = false;
+
+        for (uint256 i = 0; i < file.authorizedUsers.length; i++) {
+            if (file.authorizedUsers[i] == user) {
+                file.authorizedUsers[i] = file.authorizedUsers[file.authorizedUsers.length - 1];
+                file.authorizedUsers.pop();
+                found = true;
+                emit AccessRevoked(fileId, user);
+                break;
+            }
+        }
+
+        require(found, "User not found.");
+    }
+
+    function isAuthorized(bytes32 fileId, address user) public view returns (bool) {
+        File storage file = files[fileId];
+        if (file.owner == user) {
             return true;
         }
-        for (uint256 i = 0; i < files[proof].authorized.length; i++) {
-            if (files[proof].authorized[i] == user) {
+        for (uint256 i = 0; i < file.authorizedUsers.length; i++) {
+            if (file.authorizedUsers[i] == user) {
                 return true;
             }
         }
         return false;
     }
 
-    function authorizeAddress(string memory _ipfsHash, address newAuthorized) public onlyOwnerOrServer(keccak256(abi.encodePacked(_ipfsHash))) {
-        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash));
-        require(newAuthorized != address(0), "Invalid address.");
-
-        for (uint256 i = 0; i < files[proof].authorized.length; i++) {
-            require(files[proof].authorized[i] != newAuthorized, "Address already authorized.");
-        }
-
-        files[proof].authorized.push(newAuthorized);
-        emit AddressAuthorized(proof, newAuthorized);
+    function logFileAccess(bytes32 fileId, address user) public {
+        require(isAuthorized(fileId, user), "User is not authorized.");
+        emit FileAccessed(fileId, user, block.timestamp);
     }
 
-    function revokeAddress(string memory _ipfsHash, address toRevoke) public onlyOwnerOrServer(keccak256(abi.encodePacked(_ipfsHash))) {
-        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash));
-        address[] storage authorized = files[proof].authorized;
-        bool found = false;
-
-        for (uint256 i = 0; i < authorized.length; i++) {
-            if (authorized[i] == toRevoke) {
-                authorized[i] = authorized[authorized.length - 1];
-                authorized.pop();
-                found = true;
-                emit AddressRevoked(proof, toRevoke);
-                break;
-            }
-        }
-
-        require(found, "Address not found.");
+    function logUnauthorizedAccess(bytes32 fileId, address user, string memory ipAddress) public {
+        emit UnauthorizedAccess(fileId, user, ipAddress, block.timestamp);
     }
 
-    function logAccess(string memory _ipfsHash, address user) public {
-        require(isAuthorized(_ipfsHash, user), "User not authorized.");
-        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash));
-        emit FileAccessed(proof, user, _ipfsHash, block.timestamp);
+    function getOwner(bytes32 fileId) public view returns (address) {
+        return files[fileId].owner;
     }
 
-    function logUnauthorizedAccess(string memory _ipfsHash, address user, string memory ipAddress) public {
-        bytes32 proof = keccak256(abi.encodePacked(_ipfsHash));
-        emit UnauthorizedAccess(proof, user, _ipfsHash, ipAddress, block.timestamp);
+    function getAuthorizedUsers(bytes32 fileId) public view returns (address[] memory) {
+        return files[fileId].authorizedUsers;
     }
 }

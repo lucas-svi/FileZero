@@ -18,6 +18,11 @@
             <input type="file" id="fileInput" required><br><br>
             <label for="passwordInput">Enter password:</label>
             <input type="password" id="passwordInput" required><br><br>
+            <label for="authorizedUsersInput">Authorized Ethereum Addresses (comma-separated):</label>
+            <input type="text" id="authorizedUsersInput"><br><br>
+            <label for="authorizeSelfCheckbox">
+                <input type="checkbox" id="authorizeSelfCheckbox" checked> Authorize Myself
+            </label><br><br>
             <button type="button" onclick="uploadFile()">Upload and Encrypt</button>
         </form>
 
@@ -31,6 +36,32 @@
             <input type="password" id="decryptPasswordInput" required><br><br>
             <button type="button" onclick="downloadFile()">Decrypt</button>
         </form>
+
+        <hr>
+
+        <div id="authorizeSection">
+            <h2>Authorize a User</h2>
+            <label for="authorizeHashInput">Enter IPFS Hash:</label>
+            <input type="text" id="authorizeHashInput" required><br><br>
+            <label for="authorizeAddressInput">Ethereum Address to Authorize:</label>
+            <input type="text" id="authorizeAddressInput" required><br><br>
+            <label for="authorizePasswordInput">Enter password:</label>
+            <input type="password" id="authorizePasswordInput" required><br><br>
+            <button type="button" onclick="authorizeUser()">Authorize</button>
+        </div>
+
+        <hr>
+
+        <div id="revokeSection">
+            <h2>Revoke User Access</h2>
+            <label for="revokeHashInput">Enter IPFS Hash:</label>
+            <input type="text" id="revokeHashInput" required><br><br>
+            <label for="revokeAddressInput">Ethereum Address to Revoke:</label>
+            <input type="text" id="revokeAddressInput" required><br><br>
+            <label for="revokePasswordInput">Enter password:</label>
+            <input type="password" id="revokePasswordInput" required><br><br>
+            <button type="button" onclick="revokeUser()">Revoke</button>
+        </div>
 
         <hr>
 
@@ -66,6 +97,8 @@
 
             const fileInput = document.getElementById('fileInput').files[0];
             const password = document.getElementById('passwordInput').value;
+            const authorizedUsers = document.getElementById('authorizedUsersInput').value.trim();
+            const authorizeSelf = document.getElementById('authorizeSelfCheckbox').checked;
 
             if (!fileInput || !password) {
                 alert("Please select a file and enter a password.");
@@ -74,9 +107,10 @@
 
             const formData = new FormData();
             formData.append('file', fileInput);
-            formData.append('password', password); 
-            formData.append('originalFileName', fileInput.name); 
+            formData.append('password', password);
             formData.append('walletAddress', walletAddress);
+            formData.append('authorizedAddresses', authorizedUsers);
+            formData.append('authorizeSelf', authorizeSelf);
 
             try {
                 const response = await fetch('/upload', {
@@ -153,22 +187,86 @@
             }
         }
 
+        async function authorizeUser() {
+            const ipfsHash = document.getElementById('authorizeHashInput').value.trim();
+            const newAddress = document.getElementById('authorizeAddressInput').value.trim();
+            const password = document.getElementById('authorizePasswordInput').value.trim();
+            const walletAddress = await getConnectedWallet();
+
+            if (!ipfsHash || !newAddress || !password || !walletAddress) {
+                alert('All fields are required.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/authorize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ipfsHash, newAddress, password, walletAddress })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert('User authorized successfully.');
+                } else {
+                    alert(`Authorization failed: ${result.error}`);
+                }
+            } catch (error) {
+                alert('An error occurred during authorization.');
+                console.error('Authorization Error:', error);
+            }
+        }
+
+        async function revokeUser() {
+            const ipfsHash = document.getElementById('revokeHashInput').value.trim();
+            const revokedAddress = document.getElementById('revokeAddressInput').value.trim();
+            const password = document.getElementById('revokePasswordInput').value.trim();
+            const walletAddress = await getConnectedWallet();
+
+            if (!ipfsHash || !revokedAddress || !password || !walletAddress) {
+                alert('All fields are required.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/revoke', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ipfsHash, revokedAddress, password, walletAddress })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert('User access revoked successfully.');
+                } else {
+                    alert(`Revocation failed: ${result.error}`);
+                }
+            } catch (error) {
+                alert('An error occurred during revocation.');
+                console.error('Revocation Error:', error);
+            }
+        }
+
         async function fetchAccessLogs() {
             const ipfsHash = document.getElementById('logsHashInput').value.trim();
-            const userAddress = await getConnectedWallet();
+            const walletAddress = await getConnectedWallet();
 
             if (!ipfsHash) {
                 alert('Please enter an IPFS hash to view access logs.');
                 return;
             }
 
-            if (!userAddress) {
+            if (!walletAddress) {
                 alert('Could not fetch user address. Please ensure your wallet is connected.');
                 return;
             }
 
             try {
-                const response = await fetch(`/logs?ipfsHash=${encodeURIComponent(ipfsHash)}&userAddress=${encodeURIComponent(userAddress)}`);
+                const response = await fetch(`/logs?ipfsHash=${encodeURIComponent(ipfsHash)}&userAddress=${encodeURIComponent(walletAddress)}`);
                 const result = await response.json();
                 const logsContainer = document.getElementById('accessLogs');
                 logsContainer.innerHTML = '';
@@ -207,7 +305,6 @@
         }
     </script>
 
-
     <script>
         particlesJS("particles-js", {
             "particles": {
@@ -222,15 +319,14 @@
                     "value": "#ffffff"
                 },
                 "shape": {
-                    "type": "circle",
+                    "type": "circle"
                 },
                 "opacity": {
-                    "value": 0.5,
-                    "random": false,
+                    "value": 0.5
                 },
                 "size": {
                     "value": 3,
-                    "random": true,
+                    "random": true
                 },
                 "line_linked": {
                     "enable": true,
@@ -245,7 +341,7 @@
                     "direction": "none",
                     "random": false,
                     "straight": false,
-                    "bounce": false,
+                    "bounce": false
                 }
             },
             "interactivity": {
@@ -267,7 +363,7 @@
                         "line_linked": {
                             "opacity": 1
                         }
-                    },
+                    }
                 }
             },
             "retina_detect": true

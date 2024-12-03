@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "C:\\Users\\Dismissive\\FileZero\\contracts\\FileShare.sol": {
-      "lastModificationDate": 1733186230830,
-      "contentHash": "f1fa2af109d4a6f3b37a0069445f0b05",
+      "lastModificationDate": 1733254437458,
+      "contentHash": "bd8fdccc1253ba390a46b6b38cf512df",
       "sourceName": "contracts/FileShare.sol",
       "solcConfig": {
         "version": "0.8.0",
