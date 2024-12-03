@@ -35,7 +35,7 @@ app.get('/my-ip', (req, res) => {
 
 
 app.post('/upload', upload.single('file'), async (req, res) => {
-    const { file, password, originalFileName, walletAddress} = req.body;
+    const { password, originalFileName, walletAddress, authorizedAddresses } = req.body;
     try {
         const filePath = req.file.path;
         const fileBuffer = fs.readFileSync(filePath);
@@ -63,15 +63,19 @@ app.post('/upload', upload.single('file'), async (req, res) => {
                 cidVersion: 1
             }
         };
-
-        console.log("uploading file")
-
-
         const result = await pinata.pinFileToIPFS(stream, options);
         fs.unlinkSync(filePath);
         fs.unlinkSync(tempFilePath);
 
-        const tx = await fileShareContract.uploadFile(result.IpfsHash, walletAddress);
+        let authorizedList = [];
+        if (authorizedAddresses) {
+            authorizedList = authorizedAddresses.split(',').map(addr => addr.trim());
+            authorizedList = authorizedList.filter(addr => ethers.isAddress(addr));
+        }
+
+        const formattedAuthorizedList = authorizedList.map(addr => ethers.getAddress(addr));
+
+        const tx = await fileShareContract.uploadFile(result.IpfsHash, formattedAuthorizedList);
         await tx.wait();
         res.json({ ipfsHash: result.IpfsHash });
     } catch (error) {
@@ -101,10 +105,18 @@ app.post('/download', async (req, res) => {
         const { ipfsHash, password, walletAddress: userAddress } = req.body;
         let clientIp = requestIp.getClientIp(req);
         clientIp = normalizeIp(clientIp);
-        const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
-        if (isOwner) {
+
+        // Verify if the user is authorized
+        const isOwnerOrAuthorized = await fileShareContract.isAuthorized(ipfsHash, userAddress);
+        if (isOwnerOrAuthorized) {
             const tx = await fileShareContract.logAccess(ipfsHash, userAddress);
-            tx.wait();
+            const receipt = await tx.wait();
+            console.log('Transaction Receipt:', receipt);
+
+            // Log events emitted during logAccess
+            const events = receipt.logs.map(log => fileShareContract.interface.parseLog(log));
+            console.log('Events emitted during logAccess:', events);
+
             const encryptedFile = await downloadFromIPFS(ipfsHash);
             const derivedKey = crypto.createHash('sha256')
                 .update(password + userAddress + salt)
@@ -112,27 +124,25 @@ app.post('/download', async (req, res) => {
             const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, Buffer.from(encryptedFile.iv, 'hex'));
             const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
             const filename = encryptedFile.originalFileName
-            ? sanitizeFilename(encryptedFile.originalFileName)
-            : 'default_filename.txt';
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send(decrypted);
+                ? sanitizeFilename(encryptedFile.originalFileName)
+                : 'default_filename.txt';
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.send(decrypted);
         } else {
             const tx = await fileShareContract.logUnauthorizedAccess(ipfsHash, userAddress, clientIp);
             await tx.wait();
             return res.status(403).json({ success: false, error: 'Unauthorized access attempt logged.' });
         }
 
-        
     } catch (error) {
-        console.log('Error Code:', error.code); 
+        console.log('Error Code:', error.code);
         if (error.reason) {
-            console.log('Error Reason:', error.reason); 
+            console.log('Error Reason:', error.reason);
         } else {
-            console.log('Unknown Error:', error); 
+            console.log('Unknown Error:', error);
         }
         res.status(500).json({ error: `${error.reason ? error.reason : "Error"}` });
     }
-    
 });
 
 
