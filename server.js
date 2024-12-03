@@ -54,7 +54,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             pinataOptions: {
                 cidVersion: 1
             }
-        };        
+        };
+
+        console.log("uploading file")
+
+
         const result = await pinata.pinFileToIPFS(stream, options);
         fs.unlinkSync(filePath);
         fs.unlinkSync(tempFilePath);
@@ -92,10 +96,7 @@ app.post('/download', async (req, res) => {
         const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
         if (isOwner) {
             const tx = await fileShareContract.logAccess(ipfsHash, userAddress);
-            const receipt = await tx.wait();
-            console.log('Transaction Receipt:', receipt);
-            const events = receipt.logs.map(log => fileShareContract.interface.parseLog(log));
-            console.log('Events emitted during logAccess:', events);
+            tx.wait();
             const encryptedFile = await downloadFromIPFS(ipfsHash);
             const derivedKey = crypto.createHash('sha256')
                 .update(password + userAddress + salt)
