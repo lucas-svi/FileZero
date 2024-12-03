@@ -135,29 +135,27 @@ app.get('/logs', async (req, res) => {
     }
 
     try {
-        const proof = ethers.solidityPackedKeccak256(
-            ['string', 'address'],
-            [ipfsHash, ethers.getAddress(userAddress)]
-        );
-        console.log('Computed proof:', proof);
-        const accessFilter = fileShareContract.filters.FileAccessed(proof, null);
-        console.log(accessFilter)
-        const accessEvents = await fileShareContract.queryFilter(accessFilter);
-        console.log(accessEvents)
-        const accessLogs = accessEvents.map(event => ({
+        const allAccessEvents = await fileShareContract.queryFilter(fileShareContract.filters.FileAccessed());
+        const allUnauthorizedEvents = await fileShareContract.queryFilter(fileShareContract.filters.UnauthorizedAccess());
+        const ipfsHashToMatch = ipfsHash.trim();
+
+        const accessLogs = allAccessEvents
+        .filter(event => event.args.ipfsHash === ipfsHashToMatch)
+        .map(event => ({
             proof: event.args.proof,
             accessedBy: event.args.accessedBy,
-            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString(),
+            ipfsHash: event.args.ipfsHash,
         }));
-        console.log(accessLogs)
-        const unauthorizedFilter = fileShareContract.filters.UnauthorizedAccess(proof, null);
-        const unauthorizedEvents = await fileShareContract.queryFilter(unauthorizedFilter);
 
-        const unauthorizedLogs = unauthorizedEvents.map(event => ({
+        const unauthorizedLogs = allUnauthorizedEvents
+        .filter(event => event.args.ipfsHash === ipfsHashToMatch)
+        .map(event => ({
             proof: event.args.proof,
             attemptedBy: event.args.attemptedBy,
             ipAddress: event.args.ipAddress,
-            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString(),
+            ipfsHash: event.args.ipfsHash,
         }));
 
         res.json({
