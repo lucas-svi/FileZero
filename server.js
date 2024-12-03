@@ -92,7 +92,10 @@ app.post('/download', async (req, res) => {
         const isOwner = await fileShareContract.verifyOwnership(ipfsHash, userAddress);
         if (isOwner) {
             const tx = await fileShareContract.logAccess(ipfsHash, userAddress);
-            await tx.wait();
+            const receipt = await tx.wait();
+            console.log('Transaction Receipt:', receipt);
+            const events = receipt.logs.map(log => fileShareContract.interface.parseLog(log));
+            console.log('Events emitted during logAccess:', events);
             const encryptedFile = await downloadFromIPFS(ipfsHash);
             const derivedKey = crypto.createHash('sha256')
                 .update(password + userAddress + salt)
@@ -123,42 +126,49 @@ app.post('/download', async (req, res) => {
     
 });
 
+
 app.get('/logs', async (req, res) => {
+    const { ipfsHash, userAddress } = req.query;
+
+    if (!ipfsHash || !userAddress) {
+        return res.status(400).json({ success: false, error: 'IPFS hash and user address are required' });
+    }
+
     try {
-        const unauthorizedFilter = fileShareContract.filters.UnauthorizedAccess();
+        const proof = ethers.solidityPackedKeccak256(
+            ['string', 'address'],
+            [ipfsHash, ethers.getAddress(userAddress)]
+        );
+        console.log('Computed proof:', proof);
+        const accessFilter = fileShareContract.filters.FileAccessed(proof, null);
+        console.log(accessFilter)
+        const accessEvents = await fileShareContract.queryFilter(accessFilter);
+        console.log(accessEvents)
+        const accessLogs = accessEvents.map(event => ({
+            proof: event.args.proof,
+            accessedBy: event.args.accessedBy,
+            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
+        }));
+        console.log(accessLogs)
+        const unauthorizedFilter = fileShareContract.filters.UnauthorizedAccess(proof, null);
         const unauthorizedEvents = await fileShareContract.queryFilter(unauthorizedFilter);
 
-
-        
         const unauthorizedLogs = unauthorizedEvents.map(event => ({
             proof: event.args.proof,
             attemptedBy: event.args.attemptedBy,
             ipAddress: event.args.ipAddress,
             timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
         }));
-        const accessFilter = fileShareContract.filters.FileAccessed();
-        const accessEvents = await fileShareContract.queryFilter(accessFilter);
-        const accessLogs = accessEvents.map(event => ({
-            proof: event.args.proof,
-            accessedBy: event.args.accessedBy,
-            timestamp: new Date(Number(event.args.timestamp) * 1000).toLocaleString()
-        }));
-
-        
-
-        console.log(accessLogs)
-        console.log(unauthorizedLogs)
-
 
         res.json({
             success: true,
             unauthorizedLogs,
             accessLogs
         });
-
     } catch (error) {
         console.error('Error retrieving access logs:', error);
-        res.json({ success: false, error: 'Error retrieving access logs.' });
+        res.status(500).json({ success: false, error: 'Error retrieving access logs.' });
     }
 });
+
 app.listen(3000, () => console.log('Server started on http://localhost:3000'));
