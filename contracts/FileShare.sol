@@ -11,13 +11,13 @@ contract FileShare {
     mapping(bytes32 => File) private files;
 
     event FileUploaded(bytes32 indexed fileId, string ipfsHash, address indexed owner, address[] authorizedUsers);
-    event AccessGranted(bytes32 indexed fileId, address indexed grantedTo);
-    event AccessRevoked(bytes32 indexed fileId, address indexed revokedFrom);
+    event AccessGranted(bytes32 indexed fileId, address indexed grantedTo, address indexed sender);
+    event AccessRevoked(bytes32 indexed fileId, address indexed revokedFrom, address indexed sender);
     event FileAccessed(bytes32 indexed fileId, address indexed accessedBy, uint256 timestamp);
     event UnauthorizedAccess(bytes32 indexed fileId, address indexed attemptedBy, string ipAddress, uint256 timestamp);
 
-    modifier onlyOwner(bytes32 fileId) {
-        require(files[fileId].owner == msg.sender, "Only the file owner can perform this action.");
+    modifier onlyOwner(bytes32 fileId, address sender) {
+        require(files[fileId].owner == sender, "Only the file owner can perform this action.");
         _;
     }
 
@@ -42,7 +42,7 @@ contract FileShare {
         emit FileUploaded(fileId, ipfsHash, owner, authorizedUsers);
     }
 
-    function grantAccess(bytes32 fileId, address user) public onlyOwner(fileId) {
+    function grantAccess(bytes32 fileId, address user, address sender) public onlyOwner(fileId, sender) {
         require(user != address(0), "Invalid address.");
         File storage file = files[fileId];
 
@@ -51,10 +51,10 @@ contract FileShare {
         }
 
         file.authorizedUsers.push(user);
-        emit AccessGranted(fileId, user);
+        emit AccessGranted(fileId, user, sender);
     }
 
-    function revokeAccess(bytes32 fileId, address user) public onlyOwner(fileId) {
+    function revokeAccess(bytes32 fileId, address user, address sender) public onlyOwner(fileId, sender) {
         File storage file = files[fileId];
         bool found = false;
 
@@ -63,7 +63,7 @@ contract FileShare {
                 file.authorizedUsers[i] = file.authorizedUsers[file.authorizedUsers.length - 1];
                 file.authorizedUsers.pop();
                 found = true;
-                emit AccessRevoked(fileId, user);
+                emit AccessRevoked(fileId, user, sender);
                 break;
             }
         }

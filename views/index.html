@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Encryption and Storage</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
 </head>
 <body>
@@ -86,15 +87,15 @@
                     return null;
                 }
             } else {
-                alert('MetaMask is not installed. Please install it to use this feature.');
+                alert('Wallet (MetaMask) is not installed. Please install it to use this feature.');
                 return null;
             }
         }
 
         async function uploadFile() {
-            const walletAddress = await getConnectedWallet();
+            let walletAddress = await getConnectedWallet();
             if (!walletAddress) return;
-
+            walletAddress = ethers.getAddress(walletAddress); 
             const fileInput = document.getElementById('fileInput').files[0];
             const password = document.getElementById('passwordInput').value;
             const authorizedUsers = document.getElementById('authorizedUsersInput').value.trim();
@@ -136,7 +137,8 @@
         async function downloadFile() {
             const ipfsHash = document.getElementById('hashInput').value.trim();
             const password = document.getElementById('decryptPasswordInput').value.trim();
-            const walletAddress = await getConnectedWallet();
+            let walletAddress = await getConnectedWallet();
+            walletAddress = ethers.getAddress(walletAddress);
             if (!walletAddress) return;
 
             if (!ipfsHash || !password) {
@@ -191,9 +193,11 @@
             const ipfsHash = document.getElementById('authorizeHashInput').value.trim();
             const newAddress = document.getElementById('authorizeAddressInput').value.trim();
             const password = document.getElementById('authorizePasswordInput').value.trim();
-            const walletAddress = await getConnectedWallet();
+            let sender = await getConnectedWallet();
+            sender = ethers.getAddress(sender);
+            if (!sender) return;
 
-            if (!ipfsHash || !newAddress || !password || !walletAddress) {
+            if (!ipfsHash || !newAddress || !sender) {
                 alert('All fields are required.');
                 return;
             }
@@ -204,7 +208,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ ipfsHash, newAddress, password, walletAddress })
+                    body: JSON.stringify({ ipfsHash, newAddress, sender, password})
                 });
 
                 const result = await response.json();
@@ -223,9 +227,11 @@
             const ipfsHash = document.getElementById('revokeHashInput').value.trim();
             const revokedAddress = document.getElementById('revokeAddressInput').value.trim();
             const password = document.getElementById('revokePasswordInput').value.trim();
-            const walletAddress = await getConnectedWallet();
+            let sender = await getConnectedWallet();
+            sender = ethers.getAddress(sender);
+            if (!sender) return;
 
-            if (!ipfsHash || !revokedAddress || !password || !walletAddress) {
+            if (!ipfsHash || !revokedAddress || !sender) {
                 alert('All fields are required.');
                 return;
             }
@@ -236,25 +242,25 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ ipfsHash, revokedAddress, password, walletAddress })
+                    body: JSON.stringify({ ipfsHash, revokedAddress, sender, password })
                 });
 
                 const result = await response.json();
                 if (response.ok) {
-                    alert('User access revoked successfully.');
+                    alert('User revoked successfully.');
                 } else {
                     alert(`Revocation failed: ${result.error}`);
                 }
             } catch (error) {
-                alert('An error occurred during revocation.');
+                alert('An error occurred during revokation.');
                 console.error('Revocation Error:', error);
             }
         }
 
         async function fetchAccessLogs() {
             const ipfsHash = document.getElementById('logsHashInput').value.trim();
-            const walletAddress = await getConnectedWallet();
-
+            let walletAddress = await getConnectedWallet();
+            walletAddress = ethers.getAddress(walletAddress);
             if (!ipfsHash) {
                 alert('Please enter an IPFS hash to view access logs.');
                 return;

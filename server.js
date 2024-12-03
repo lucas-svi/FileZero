@@ -117,7 +117,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             ownerAddress
         );
         await tx.wait();
-
+        console.log()
         res.json({ success: true, ipfsHash });
     } catch (error) {
         console.error('Upload Error:', error);
@@ -172,7 +172,7 @@ app.get('/logs', async (req, res) => {
 
     try {
         const fileId = ethers.keccak256(ethers.toUtf8Bytes(ipfsHash));
-
+        console.log(fileId);
         const accessEvents = await fileShareContract.queryFilter(fileShareContract.filters.FileAccessed(fileId));
         const unauthorizedEvents = await fileShareContract.queryFilter(fileShareContract.filters.UnauthorizedAccess(fileId));
 
@@ -195,20 +195,18 @@ app.get('/logs', async (req, res) => {
 });
 
 app.post('/authorize', async (req, res) => {
-    const { ipfsHash, newAddress, walletAddress, password } = req.body;
+    const { ipfsHash, newAddress, sender, password } = req.body;
+
     try {
-        walletAddress = ethers.getAddress(walletAddress);
         const fileId = ethers.keccak256(ethers.toUtf8Bytes(ipfsHash));
-        console.log("File ID:", fileId);
-        console.log("Authorize Wallet Address:", walletAddress);
         const ownerAddress = await fileShareContract.getOwner(fileId);
-        console.log("Authorize Owner Address:", ownerAddress);
-        if (walletAddress !== ownerAddress) {
-            return res.status(403).json({ success: false, error: 'Only the owner can authorize users.' });
+
+        if (sender !== ownerAddress) {
+            return res.status(403).json({ success: false, error: 'Only the file owner can authorize users.' });
         }
 
-        const encryptionKey = crypto.createHash('sha256').update(password + ownerAddress + salt).digest();
         const encryptedFile = await downloadFromIPFS(ipfsHash);
+        const encryptionKey = crypto.createHash('sha256').update(password + ownerAddress + salt).digest();
         const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(encryptedFile.iv, 'hex'));
 
         try {
@@ -217,10 +215,11 @@ app.post('/authorize', async (req, res) => {
             return res.status(401).json({ success: false, error: 'Invalid password.' });
         }
 
-        const tx = await fileShareContract.grantAccess(fileId, newAddress);
+        const tx = await fileShareContract.grantAccess(fileId, ethers.getAddress(newAddress), sender);
         await tx.wait();
-
-        res.json({ success: true, message: 'Access granted successfully.' });
+        const authlist = await fileShareContract.getAuthorizedUsers(fileId);
+        console.log(authlist);
+        res.json({ success: true, message: 'User authorized successfully.' });
     } catch (error) {
         console.error('Authorization Error:', error);
         res.status(500).json({ success: false, error: 'Failed to authorize user.' });
@@ -228,13 +227,12 @@ app.post('/authorize', async (req, res) => {
 });
 
 app.post('/revoke', async (req, res) => {
-    const { ipfsHash, revokedAddress, walletAddress, password } = req.body;
+    const { ipfsHash, revokedAddress, sender, password } = req.body;
     try {
-        walletAddress = ethers.getAddress(walletAddress);
         const fileId = ethers.keccak256(ethers.toUtf8Bytes(ipfsHash));
 
         const ownerAddress = await fileShareContract.getOwner(fileId);
-        if (walletAddress !== ownerAddress) {
+        if (sender !== ownerAddress) {
             return res.status(403).json({ success: false, error: 'Only the owner can revoke access.' });
         }
 
@@ -247,10 +245,10 @@ app.post('/revoke', async (req, res) => {
         } catch {
             return res.status(401).json({ success: false, error: 'Invalid password.' });
         }
-
-        const tx = await fileShareContract.revokeAccess(fileId, revokedAddress);
+        const tx = await fileShareContract.revokeAccess(fileId, ethers.getAddress(revokedAddress), sender);
         await tx.wait();
-
+        const authlist = await fileShareContract.getAuthorizedUsers(fileId);
+        console.log(authlist);
         res.json({ success: true, message: 'Access revoked successfully.' });
     } catch (error) {
         console.error('Revocation Error:', error);
