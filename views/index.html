@@ -2,20 +2,22 @@
 <html lang="en">
 <head>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FileZero</title>
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@latest/tsparticles.bundle.min.js"></script>
 </head>
 <body>
-    <div id="particles-js"></div>
+    <div id="tsparticles"></div>
     <div class="content">
         <h1>FileZero</h1>
 
         <form id="uploadForm">
             <h2>Upload and Encrypt a File</h2>
-            <label for="fileInput">Select file:</label>
+            <label for="fileInput"><i class="fa-sharp fa-solid fa-file"></i> Select file:</label>
             <input type="file" id="fileInput" required><br><br>
             <label for="passwordInput">Enter password:</label>
             <input type="password" id="passwordInput" required><br><br>
@@ -95,6 +97,7 @@
         async function uploadFile() {
             let walletAddress = await getConnectedWallet();
             if (!walletAddress) return;
+            
             walletAddress = ethers.getAddress(walletAddress); 
             const fileInput = document.getElementById('fileInput').files[0];
             const password = document.getElementById('passwordInput').value;
@@ -105,7 +108,8 @@
                 alert("Please select a file and enter a password.");
                 return;
             }
-
+            const uploadButton = document.querySelector('#uploadForm button');
+            const resetButtonText = updateButtonText(uploadButton, 'Uploading...');
             const formData = new FormData();
             formData.append('file', fileInput);
             formData.append('password', password);
@@ -131,6 +135,8 @@
             } catch (error) {
                 alert('An error occurred while uploading the file.');
                 console.error('Upload Error:', error);
+            } finally {
+                resetButtonText();
             }
         }
 
@@ -138,14 +144,14 @@
             const ipfsHash = document.getElementById('hashInput').value.trim();
             const password = document.getElementById('decryptPasswordInput').value.trim();
             let walletAddress = await getConnectedWallet();
-            walletAddress = ethers.getAddress(walletAddress);
             if (!walletAddress) return;
-
+            walletAddress = ethers.getAddress(walletAddress);
             if (!ipfsHash || !password) {
                 alert("Please enter both IPFS hash and password.");
                 return;
             }
-
+            const downloadButton = document.querySelector('#downloadForm button');
+            const resetButtonText = updateButtonText(downloadButton, 'Downloading...');
             try {
                 const response = await fetch('/download', {
                     method: 'POST',
@@ -186,10 +192,13 @@
             } catch (error) {
                 alert(`${error.message}`);
                 console.error('Download Error:', error);
+            } finally {
+                resetButtonText();
             }
         }
 
         async function authorizeUser() {
+            
             const ipfsHash = document.getElementById('authorizeHashInput').value.trim();
             const newAddress = document.getElementById('authorizeAddressInput').value.trim();
             const password = document.getElementById('authorizePasswordInput').value.trim();
@@ -201,7 +210,8 @@
                 alert('All fields are required.');
                 return;
             }
-
+            const authorizeButton = document.querySelector('#authorizeSection button');
+            const resetButtonText = updateButtonText(authorizeButton, 'Authorizing user...');
             try {
                 const response = await fetch('/authorize', {
                     method: 'POST',
@@ -220,10 +230,13 @@
             } catch (error) {
                 alert('An error occurred during authorization.');
                 console.error('Authorization Error:', error);
+            } finally {
+                resetButtonText();
             }
         }
 
         async function revokeUser() {
+            
             const ipfsHash = document.getElementById('revokeHashInput').value.trim();
             const revokedAddress = document.getElementById('revokeAddressInput').value.trim();
             const password = document.getElementById('revokePasswordInput').value.trim();
@@ -235,7 +248,8 @@
                 alert('All fields are required.');
                 return;
             }
-
+            const revokeButton = document.querySelector('#revokeSection button');
+            const resetButtonText = updateButtonText(revokeButton, 'Revoking access...');
             try {
                 const response = await fetch('/revoke', {
                     method: 'POST',
@@ -254,6 +268,8 @@
             } catch (error) {
                 alert('An error occurred during revokation.');
                 console.error('Revocation Error:', error);
+            } finally {
+                resetButtonText();
             }
         }
 
@@ -314,68 +330,81 @@
     </script>
 
     <script>
-        particlesJS("particles-js", {
-            "particles": {
-                "number": {
-                    "value": 100,
-                    "density": {
-                        "enable": true,
-                        "value_area": 800
-                    }
-                },
-                "color": {
-                    "value": "#ffffff"
-                },
-                "shape": {
-                    "type": "circle"
-                },
-                "opacity": {
-                    "value": 0.5
-                },
-                "size": {
-                    "value": 3,
-                    "random": true
-                },
-                "line_linked": {
-                    "enable": true,
-                    "distance": 150,
-                    "color": "#ffffff",
-                    "opacity": 0.4,
-                    "width": 1
-                },
-                "move": {
-                    "enable": true,
-                    "speed": 2,
-                    "direction": "none",
-                    "random": false,
-                    "straight": false,
-                    "bounce": false
-                }
-            },
-            "interactivity": {
-                "detect_on": "canvas",
-                "events": {
-                    "onhover": {
-                        "enable": true,
-                        "mode": "grab"
+        (async () => {
+            await loadFull(tsParticles);
+            await tsParticles.load({
+                id: "tsparticles",
+                options: {
+                    particles: {
+                        number: {
+                        value: 100,
+                        density: {
+                            enable: true,
+                            area: 50,
+                        },
+                        },
+                        links: {
+                            enable: true,
+                            distance: 100,
+                        },
+                        color: {
+                        value: '#ffffff',
+                        },
+                        shape: {
+                        type: 'circle',
+                        },
+                        opacity: {
+                        value: 0.5,
+                        },
+                        size: {
+                        value: 3,
+                        random: true,
+                        },
+                        move: {
+                        enable: true,
+                        speed: 6,
+                        },
                     },
-                    "onclick": {
-                        "enable": true,
-                        "mode": "push"
+                    interactivity: {
+                        events: {
+                        onHover: {
+                            enable: true,
+                            mode: 'connect',
+                        },
+                        onClick: {
+                            enable: true,
+                            mode: 'push',
+                        },
+                        },
+                        modes: {
+                        connect: {
+                            distance: 200,
+                            links: {
+                            opacity: 0.5,
+                            },
+                        },
+                        push: {
+                            quantity: 4,
+                        },
+                        },
                     },
-                    "resize": true
-                },
-                "modes": {
-                    "grab": {
-                        "distance": 200,
-                        "line_linked": {
-                            "opacity": 1
-                        }
-                    }
-                }
-            },
-            "retina_detect": true
-        });
+                    detectRetina: true,
+                                    },
+                                });
+                            })();
+    </script>
+
+    <script>
+        function updateButtonText(button, loadingText) {
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.setAttribute('data-original-text', originalText);
+            button.innerHTML = loadingText;
+            return () => {
+                button.disabled = false;
+                button.innerHTML = originalText;
+            };
+        }
     </script>
 </body>
 </html>
