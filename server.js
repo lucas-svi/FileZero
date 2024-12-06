@@ -1,4 +1,5 @@
 require('dotenv').config();
+//require('dotenv').config({path:'/var/www/filezero/.env'});
 const express = require('express');
 const bodyParser = require('body-parser');
 const multer = require('multer');
@@ -18,7 +19,7 @@ app.set('trust proxy', true);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'views')));
 
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: 'uploads' });
 
 const provider = new ethers.JsonRpcProvider(`https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`);
 const privateKey = process.env.PRIVATE_KEY;
@@ -53,7 +54,7 @@ function normalizeIp(ip) {
     return ip;
 }
 
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
     const { password, authorizeSelf } = req.body;
     try {
         const uploaderAddress = ethers.getAddress(req.body.walletAddress);
@@ -85,11 +86,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const iv = crypto.randomBytes(16);
         const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv);
         const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
-
+        const fileNameCipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv);
+        const encryptedFilename = Buffer.concat([fileNameCipher.update(req.file.originalname, 'utf8'), fileNameCipher.final()]);
+        const encryptedFilenameBase64 = encryptedFilename.toString('base64');
         const encryptedFile = {
             iv: iv.toString('hex'),
             content: encrypted.toString('hex'),
-            originalFileName: req.file.originalname
+            originalFileName: encryptedFilenameBase64
         };
 
         const tempFilePath = 'encrypted_file.json';
@@ -98,7 +101,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const stream = fs.createReadStream(tempFilePath);
         const options = {
             pinataMetadata: {
-                name: req.file.originalname,
+                name: encryptedFilenameBase64,
             },
             pinataOptions: {
                 cidVersion: 1
@@ -125,7 +128,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
-app.post('/download', async (req, res) => {
+app.post('/api/download', async (req, res) => {
     try {
         const { ipfsHash, password } = req.body;
         const walletAddress = ethers.getAddress(req.body.walletAddress);
@@ -143,18 +146,18 @@ app.post('/download', async (req, res) => {
         console.log("Download Owner Address:", ownerAddress);
         const encryptedFile = await downloadFromIPFS(ipfsHash);
 
-        const encryptionKey = crypto.createHash('sha256').update(password + ownerAddress + salt).digest();
-        console.log("Decrypted Key:", encryptionKey);
+        const decryptionKey = crypto.createHash('sha256').update(password + ownerAddress + salt).digest();
+        const decryptionKeyFilename = crypto.createHash('sha256').update(password + ownerAddress + salt).digest();
+        console.log("Decrypted Key:", decryptionKey);
         
-        const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(encryptedFile.iv, 'hex'));
+        const decipher = crypto.createDecipheriv('aes-256-cbc', decryptionKey, Buffer.from(encryptedFile.iv, 'hex'));
+        const decipherFilename = crypto.createDecipheriv('aes-256-cbc', decryptionKeyFilename, Buffer.from(encryptedFile.iv, 'hex'));
         const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedFile.content, 'hex')), decipher.final()]);
-
+        const decryptedFilename = Buffer.concat([decipherFilename.update(Buffer.from(encryptedFile.originalFileName, 'base64')), decipherFilename.final()]);
         const tx = await fileShareContract.logFileAccess(fileId, walletAddress);
         await tx.wait();
 
-        const filename = encryptedFile.originalFileName
-            ? sanitizeFilename(encryptedFile.originalFileName)
-            : 'decrypted_file';
+        const filename = encryptedFile.originalFileName ? sanitizeFilename(decryptedFilename.toString('utf8')) : 'decrypted_file';
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(decrypted);
     } catch (error) {
@@ -163,7 +166,7 @@ app.post('/download', async (req, res) => {
     }
 });
 
-app.get('/logs', async (req, res) => {
+app.get('/api/logs', async (req, res) => {
     const { ipfsHash, userAddress } = req.query;
 
     if (!ipfsHash || !userAddress) {
@@ -194,7 +197,7 @@ app.get('/logs', async (req, res) => {
     }
 });
 
-app.post('/authorize', async (req, res) => {
+app.post('/api/authorize', async (req, res) => {
     const { ipfsHash, newAddress, sender, password } = req.body;
 
     try {
@@ -226,7 +229,7 @@ app.post('/authorize', async (req, res) => {
     }
 });
 
-app.post('/revoke', async (req, res) => {
+app.post('/api/revoke', async (req, res) => {
     const { ipfsHash, revokedAddress, sender, password } = req.body;
     try {
         const fileId = ethers.keccak256(ethers.toUtf8Bytes(ipfsHash));

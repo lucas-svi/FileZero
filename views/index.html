@@ -4,17 +4,18 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FileZero</title>
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tsparticles@latest/tsparticles.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
 <body>
     <div id="tsparticles"></div>
     <div class="content">
         <h1>FileZero</h1>
-
         <form id="uploadForm">
             <h2>Upload and Encrypt a File</h2>
             <label for="fileInput"><i class="fa-sharp fa-solid fa-file"></i> Select file:</label>
@@ -28,7 +29,6 @@
             </label><br><br>
             <button type="button" onclick="uploadFile()">Upload and Encrypt</button>
         </form>
-
         <hr>
 
         <form id="downloadForm">
@@ -85,11 +85,27 @@
                     return accounts[0];
                 } catch (error) {
                     console.error('User denied wallet access:', error);
-                    alert('Please allow access to your wallet to proceed.');
+                    Toastify({
+                        text: "Please provide access to view your Ethereum address.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                    }).showToast();
                     return null;
                 }
             } else {
-                alert('Wallet (MetaMask) is not installed. Please install it to use this feature.');
+                Toastify({
+                    text: "Wallet (MetaMask) is not installed. Please install it to use this feature.",
+                    duration: 2000,
+                    gravity: "top",
+                    position: "center",
+                    style: {
+                        background: "linear-gradient(to right, #FF5722, #F44336)"
+                    }
+                }).showToast();
                 return null;
             }
         }
@@ -105,7 +121,15 @@
             const authorizeSelf = document.getElementById('authorizeSelfCheckbox').checked;
 
             if (!fileInput || !password) {
-                alert("Please select a file and enter a password.");
+                Toastify({
+                    text: "Please select a file and enter a password.",
+                    duration: 2000,
+                    gravity: "top",
+                    position: "center",
+                    style: {
+                        background: "linear-gradient(to right, #FF5722, #F44336)"
+                    }
+                }).showToast();
                 return;
             }
             const uploadButton = document.querySelector('#uploadForm button');
@@ -118,22 +142,72 @@
             formData.append('authorizeSelf', authorizeSelf);
 
             try {
-                const response = await fetch('/upload', {
+                const response = await fetch('/api/upload', {
                     method: 'POST',
                     body: formData
                 });
 
                 const result = await response.json();
                 if (response.ok) {
-                    alert(`File uploaded successfully! IPFS hash: ${result.ipfsHash}`);
+                    const hashUrl = `https://ipfs.io/ipfs/${result.ipfsHash}`;
+
+                    const toastContent = `
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <div>
+                                <strong>File uploaded successfully!</strong>
+                            </div>
+                            <div>
+                                IPFS Hash: <a href="${hashUrl}" target="_blank" style="color: #000000; text-decoration: underline;">${result.ipfsHash}</a>
+                            </div>
+                            <button 
+                                style="margin-top: 5px; padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;" 
+                                onclick="navigator.clipboard.writeText('${result.ipfsHash}'); alert('IPFS Hash copied to clipboard!')">
+                                Copy Hash
+                            </button>
+                        </div>
+                    `;
+
+                    Toastify({
+                        node: (() => {
+                            const wrapper = document.createElement("div");
+                            wrapper.innerHTML = toastContent;
+                            return wrapper;
+                        })(),
+                        duration: -1,
+                        close: true,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #4CAF50, #8BC34A)",
+                            padding: "10px",
+                            borderRadius: "8px",
+                        },
+                    }).showToast();
                 } else {
-                    alert(`Upload failed: ${result.error}`);
+                    Toastify({
+                        text: `Upload failed: ${result.error}`,
+                        duration: 5000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                    }).showToast();
+                    return;
                 }
 
                 document.getElementById('fileInput').value = '';
                 document.getElementById('passwordInput').value = '';
             } catch (error) {
-                alert('An error occurred while uploading the file.');
+                Toastify({
+                        text: "An error occurred while uploading this file.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                }).showToast();
                 console.error('Upload Error:', error);
             } finally {
                 resetButtonText();
@@ -147,13 +221,21 @@
             if (!walletAddress) return;
             walletAddress = ethers.getAddress(walletAddress);
             if (!ipfsHash || !password) {
-                alert("Please enter both IPFS hash and password.");
+                Toastify({
+                    text: "Please enter an IPFS hash and the password.",
+                    duration: 2000,
+                    gravity: "top",
+                    position: "center",
+                    style: {
+                        background: "linear-gradient(to right, #FF5722, #F44336)"
+                    }
+                }).showToast();
                 return;
             }
             const downloadButton = document.querySelector('#downloadForm button');
             const resetButtonText = updateButtonText(downloadButton, 'Downloading...');
             try {
-                const response = await fetch('/download', {
+                const response = await fetch('/api/download', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -190,7 +272,15 @@
                 document.getElementById('hashInput').value = '';
                 document.getElementById('decryptPasswordInput').value = '';
             } catch (error) {
-                alert(`${error.message}`);
+                Toastify({
+                    text: `${error.message} Please check the IPFS hash and password.`,
+                    duration: 2000,
+                    gravity: "top",
+                    position: "center",
+                    style: {
+                        background: "linear-gradient(to right, #FF5722, #F44336)"
+                    }
+                }).showToast();
                 console.error('Download Error:', error);
             } finally {
                 resetButtonText();
@@ -198,7 +288,6 @@
         }
 
         async function authorizeUser() {
-            
             const ipfsHash = document.getElementById('authorizeHashInput').value.trim();
             const newAddress = document.getElementById('authorizeAddressInput').value.trim();
             const password = document.getElementById('authorizePasswordInput').value.trim();
@@ -207,13 +296,21 @@
             if (!sender) return;
 
             if (!ipfsHash || !newAddress || !sender) {
-                alert('All fields are required.');
+                Toastify({
+                    text: "All fields are required.",
+                    duration: 2000,
+                    gravity: "top",
+                    position: "center",
+                    style: {
+                        background: "linear-gradient(to right, #FF5722, #F44336)"
+                    }
+                }).showToast();
                 return;
             }
             const authorizeButton = document.querySelector('#authorizeSection button');
             const resetButtonText = updateButtonText(authorizeButton, 'Authorizing user...');
             try {
-                const response = await fetch('/authorize', {
+                const response = await fetch('/api/authorize', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -223,12 +320,36 @@
 
                 const result = await response.json();
                 if (response.ok) {
-                    alert('User authorized successfully.');
+                    Toastify({
+                        text: "User authorized successfully.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #4CAF50, #8BC34A)"
+                        }
+                    }).showToast();
                 } else {
-                    alert(`Authorization failed: ${result.error}`);
+                    Toastify({
+                        text: `Authorization failed: ${result.error}`,
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                    }).showToast();
                 }
             } catch (error) {
-                alert('An error occurred during authorization.');
+                Toastify({
+                        text: `Authorization failed: ${result.error}`,
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                }).showToast();
                 console.error('Authorization Error:', error);
             } finally {
                 resetButtonText();
@@ -236,7 +357,6 @@
         }
 
         async function revokeUser() {
-            
             const ipfsHash = document.getElementById('revokeHashInput').value.trim();
             const revokedAddress = document.getElementById('revokeAddressInput').value.trim();
             const password = document.getElementById('revokePasswordInput').value.trim();
@@ -245,13 +365,21 @@
             if (!sender) return;
 
             if (!ipfsHash || !revokedAddress || !sender) {
-                alert('All fields are required.');
+                Toastify({
+                        text: "All fields are required.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                }).showToast();                
                 return;
             }
             const revokeButton = document.querySelector('#revokeSection button');
             const resetButtonText = updateButtonText(revokeButton, 'Revoking access...');
             try {
-                const response = await fetch('/revoke', {
+                const response = await fetch('/api/revoke', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -261,12 +389,36 @@
 
                 const result = await response.json();
                 if (response.ok) {
-                    alert('User revoked successfully.');
+                    Toastify({
+                        text: "Revoked user access successfully.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #4CAF50, #8BC34A)"
+                        }
+                    }).showToast();
                 } else {
-                    alert(`Revocation failed: ${result.error}`);
+                    Toastify({
+                        text: `Revocation failed: ${result.error}`,
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                    }).showToast();
                 }
             } catch (error) {
-                alert('An error occurred during revokation.');
+                Toastify({
+                        text: `An error occurred during revocation.`,
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                    }).showToast();
                 console.error('Revocation Error:', error);
             } finally {
                 resetButtonText();
@@ -278,17 +430,33 @@
             let walletAddress = await getConnectedWallet();
             walletAddress = ethers.getAddress(walletAddress);
             if (!ipfsHash) {
-                alert('Please enter an IPFS hash to view access logs.');
+                Toastify({
+                        text: "Please enter an IPFS hash to view access logs.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                }).showToast();
                 return;
             }
 
             if (!walletAddress) {
-                alert('Could not fetch user address. Please ensure your wallet is connected.');
+                Toastify({
+                        text: "Could not fetch user address. Please ensure your wallet is connected.",
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                }).showToast();
                 return;
             }
 
             try {
-                const response = await fetch(`/logs?ipfsHash=${encodeURIComponent(ipfsHash)}&userAddress=${encodeURIComponent(walletAddress)}`);
+                const response = await fetch(`/api/logs?ipfsHash=${encodeURIComponent(ipfsHash)}&userAddress=${encodeURIComponent(walletAddress)}`);
                 const result = await response.json();
                 const logsContainer = document.getElementById('accessLogs');
                 logsContainer.innerHTML = '';
@@ -324,7 +492,15 @@
                 }
             } catch (error) {
                 console.error('Fetch Access Logs Error:', error);
-                alert('An error occurred while fetching access logs.');
+                Toastify({
+                        text: `An error occurred while fetching access logs: ${error}`,
+                        duration: 2000,
+                        gravity: "top",
+                        position: "center",
+                        style: {
+                            background: "linear-gradient(to right, #FF5722, #F44336)"
+                        }
+                }).showToast();            
             }
         }
     </script>
